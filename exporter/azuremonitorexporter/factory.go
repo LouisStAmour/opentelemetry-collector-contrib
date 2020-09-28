@@ -42,7 +42,9 @@ func NewFactory() component.ExporterFactory {
 	return exporterhelper.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		exporterhelper.WithTraces(f.createTraceExporter))
+		exporterhelper.WithTraces(f.createTraceExporter),
+		exporterhelper.WithMetrics(f.createMetricsExporter),
+		exporterhelper.WithLogs(f.createLogsExporter))
 }
 
 // Implements the interface from go.opentelemetry.io/collector/exporter/factory.go
@@ -76,6 +78,37 @@ func (f *factory) createTraceExporter(
 	tc := f.getTransportChannel(exporterConfig, params.Logger)
 	return newTraceExporter(exporterConfig, tc, params.Logger)
 }
+
+func (f *factory) createMetricsExporter(
+	_ context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (exp component.MetricsExporter, err error) {
+	exporterConfig, ok := cfg.(*Config)
+
+	if !ok {
+		return nil, errUnexpectedConfigurationType
+	}
+
+	tc := f.getTransportChannel(exporterConfig, params.Logger)
+	return newMetricsExporter(exporterConfig, tc, params.Logger)
+}
+
+func (f *factory) createLogsExporter(
+	ctx context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.LogsExporter, error) {
+	exporterConfig, ok := cfg.(*Config)
+
+	if !ok {
+		return nil, errUnexpectedConfigurationType
+	}
+
+	tc := f.getTransportChannel(exporterConfig, params.Logger)
+	return newLogsExporter(exporterConfig, tc, params.Logger)
+}
+
 
 // Configures the transport channel.
 // This method is not thread-safe

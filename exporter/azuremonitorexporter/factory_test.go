@@ -65,3 +65,77 @@ func TestCreateTraceExporterUsingBadConfig(t *testing.T) {
 	assert.Nil(t, exporter)
 	assert.NotNil(t, err)
 }
+
+func TestCreateMetricsExporterUsingSpecificTransportChannel(t *testing.T) {
+	// mock transport channel creation
+	f := factory{tChannel: &mockTransportChannel{}}
+	ctx := context.Background()
+	params := component.ExporterCreateParams{Logger: zap.NewNop()}
+	exporter, err := f.createMetricsExporter(ctx, params, createDefaultConfig())
+	assert.NotNil(t, exporter)
+	assert.Nil(t, err)
+}
+
+func TestCreateMetricsExporterUsingDefaultTransportChannel(t *testing.T) {
+	// We get the default transport channel creation, if we don't specify one during factory creation
+	f := factory{}
+	assert.Nil(t, f.tChannel)
+	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
+	params := component.ExporterCreateParams{Logger: logger}
+	exporter, err := f.createMetricsExporter(ctx, params, createDefaultConfig())
+	assert.NotNil(t, exporter)
+	assert.Nil(t, err)
+	assert.NotNil(t, f.tChannel)
+}
+
+func TestCreateMetricsExporterUsingBadConfig(t *testing.T) {
+	// We get the default transport channel creation, if we don't specify one during factory creation
+	f := factory{}
+	assert.Nil(t, f.tChannel)
+	ctx := context.Background()
+	params := component.ExporterCreateParams{Logger: zap.NewNop()}
+
+	badConfig := &badConfig{}
+
+	exporter, err := f.createMetricsExporter(ctx, params, badConfig)
+	assert.Nil(t, exporter)
+	assert.NotNil(t, err)
+}
+
+func TestCreateLogsExporterUsingSpecificTransportChannel(t *testing.T) {
+	// mock transport channel creation
+	f := factory{tChannel: &mockTransportChannel{}}
+	ctx := context.Background()
+	params := component.ExporterCreateParams{Logger: zap.NewNop()}
+	exporter, err := f.createLogsExporter(ctx, params, createDefaultConfig())
+	assert.NotNil(t, exporter)
+	assert.Nil(t, err)
+}
+
+func TestCreateLogsExporterUsingDefaultTransportChannel(t *testing.T) {
+	// We get the default transport channel creation, if we don't specify one during f creation
+	f := factory{}
+	assert.Nil(t, f.tChannel)
+	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
+	params := component.ExporterCreateParams{Logger: logger}
+	exporter, err := f.createLogsExporter(ctx, params, createDefaultConfig())
+	assert.NotNil(t, exporter)
+	assert.Nil(t, err)
+	assert.NotNil(t, f.tChannel)
+}
+
+func TestCreateLogsExporterUsingBadConfig(t *testing.T) {
+	// We get the default transport channel creation, if we don't specify one during factory creation
+	f := factory{}
+	assert.Nil(t, f.tChannel)
+	ctx := context.Background()
+	params := component.ExporterCreateParams{Logger: zap.NewNop()}
+
+	badConfig := &badConfig{}
+
+	exporter, err := f.createLogsExporter(ctx, params, badConfig)
+	assert.Nil(t, exporter)
+	assert.NotNil(t, err)
+}
