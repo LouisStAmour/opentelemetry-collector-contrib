@@ -17,6 +17,7 @@ package azuremonitorexporter
 // Contains code common to both trace and metrics exporters
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -29,83 +30,52 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const (
-	unknownSpanType   spanType = 0
-	httpSpanType      spanType = 1
-	rpcSpanType       spanType = 2
-	databaseSpanType  spanType = 3
-	messagingSpanType spanType = 4
-	faasSpanType      spanType = 5
-
-	instrumentationLibraryName    string = "instrumentationlibrary.name"
-	instrumentationLibraryVersion string = "instrumentationlibrary.version"
-)
-
 var (
-	errUnexpectedAttributeValueType = errors.New("attribute value type is unexpected")
-	errUnsupportedSpanType          = errors.New("unsupported Span type")
+	errUnsupportedLogRecordType          = errors.New("unsupported LogRecord type")
 )
 
-// Used to identify the type of a received Span
-type spanType int8
+// Used to identify the type of a received LogRecord
+type logRecordType int8
 
-// Transforms a tuple of pdata.Resource, pdata.InstrumentationLibrary, pdata.Span into an AppInsights contracts.Envelope
+// Transforms a tuple of pdata.Resource, pdata.InstrumentationLibrary, pdata.LogRecord into an AppInsights contracts.Envelope
 // This is the only method that should be targeted in the unit tests
-
-// TODO: Record SpanEvent as ApplicationInsights Events or Exception if Name == "exception"
-// TODO: SpanEvent attribute values can be string/bool or double/int64 - if string/bool, it's a property; if double/int64 it's a measurement?
-// TODO: In the above SpanEvent attribute processing, first ignore/handle known common attributes, then use rules of thumb above
-// TODO: Record log entries as Messages? or Events? or Exception if the log name is "exception"? (Less clear!)
-// TODO: Consider always using Events instead of Messages as Messages can't handle being sent metrics?
-// TODO: Or use Message if logs don't have double/int64 metrics, and Events if it does?
-// TODO: Messages and Exceptions have severity, Events and Exceptions have metrics. Only Exceptions have both severity and metrics.
-// TODO: Exceptions also have ExceptionDetailsls, which in turn has StackFrame
-// TODO: A number of ways of recording spans also let you record measurements - so we already have setAttributeValueAsPropertyOrMeasurement
-func spanToEnvelope(
+func logRecordToEnvelope(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary,
-	span pdata.Span,
+	logRecord pdata.LogRecord,
 	logger *zap.Logger) (*contracts.Envelope, error) {
-
-	spanKind := span.Kind()
-
-	// According to the SpanKind documentation, we can assume it to be INTERNAL
-	// when we get UNSPECIFIED.
-	if spanKind == pdata.SpanKindUNSPECIFIED {
-		spanKind = pdata.SpanKindINTERNAL
-	}
-
-	attributeMap := span.Attributes()
-	incomingSpanType := mapIncomingSpanToType(attributeMap)
-
-	// For now, FaaS spans are unsupported
-	if incomingSpanType == faasSpanType {
-		return nil, errUnsupportedSpanType
-	}
 
 	envelope := contracts.NewEnvelope()
 	envelope.Tags = make(map[string]string)
-	envelope.Time = toTime(span.StartTime()).Format(time.RFC3339Nano)
-	envelope.Tags[contracts.OperationId] = span.TraceID().HexString()
-	envelope.Tags[contracts.OperationParentId] = span.ParentSpanID().HexString()
+	envelope.Time = toTime(logRecord.Timestamp()).Format(time.RFC3339Nano)
+	traceIDHexString := idToHex(logRecord.TraceID().Bytes())
+	if len(traceIDHexString) == 0 {
+		traceIDHexString = "00000000000000000000000000000000"
+	}
+	envelope.Tags[contracts.OperationId] = traceIDHexString
+	spanIDHexString := idToHex(logRecord.SpanID().Bytes())
+	if len(spanIDHexString) == 0 {
+		spanIDHexString = "0000000000000000"
+	}
+	envelope.Tags[contracts.OperationParentId] = "|" + traceIDHexString + "." + spanIDHexString
 
 	data := contracts.NewData()
 	var dataSanitizeFunc func() []string
 	var dataProperties map[string]string
 
-	if spanKind == pdata.SpanKindSERVER || spanKind == pdata.SpanKindCONSUMER {
-		requestData := spanToRequestData(span, incomingSpanType)
+	if logRecordKind == pdata.LogRecordKindSERVER || logRecordKind == pdata.LogRecordKindCONSUMER {
+		requestData := logRecordToRequestData(logRecord, incomingLogRecordType)
 		dataProperties = requestData.Properties
 		dataSanitizeFunc = requestData.Sanitize
 		envelope.Name = requestData.EnvelopeName("")
 		envelope.Tags[contracts.OperationName] = requestData.Name
 		data.BaseData = requestData
 		data.BaseType = requestData.BaseType()
-	} else if spanKind == pdata.SpanKindCLIENT || spanKind == pdata.SpanKindPRODUCER || spanKind == pdata.SpanKindINTERNAL {
-		remoteDependencyData := spanToRemoteDependencyData(span, incomingSpanType)
+	} else if logRecordKind == pdata.LogRecordKindCLIENT || logRecordKind == pdata.LogRecordKindPRODUCER || logRecordKind == pdata.LogRecordKindINTERNAL {
+		remoteDependencyData := logRecordToRemoteDependencyData(logRecord, incomingLogRecordType)
 
-		// Regardless of the detected Span type, if the SpanKind is Internal we need to set data.Type to InProc
-		if spanKind == pdata.SpanKindINTERNAL {
+		// Regardless of the detected LogRecord type, if the LogRecordKind is Internal we need to set data.Type to InProc
+		if logRecordKind == pdata.LogRecordKindINTERNAL {
 			remoteDependencyData.Type = "InProc"
 		}
 
@@ -157,55 +127,55 @@ func spanToEnvelope(
 	return envelope, nil
 }
 
-// Maps Server/Consumer Span to AppInsights RequestData
-func spanToRequestData(span pdata.Span, incomingSpanType spanType) *contracts.RequestData {
+// Maps Server/Consumer LogRecord to AppInsights RequestData
+func logRecordToRequestData(logRecord pdata.LogRecord, incomingLogRecordType logRecordType) *contracts.RequestData {
 	// See https://github.com/microsoft/ApplicationInsights-Go/blob/master/appinsights/contracts/requestdata.go
-	// Start with some reasonable default for server spans.
+	// Start with some reasonable default for server logRecords.
 	data := contracts.NewRequestData()
-	data.Id = span.SpanID().HexString()
-	data.Name = span.Name()
-	data.Duration = formatSpanDuration(span)
+	data.Id = idToHex(logRecord.SpanID())
+	data.Name = logRecord.Name()
+	data.Duration = formatLogRecordDuration(logRecord)
 	data.Properties = make(map[string]string)
 	data.Measurements = make(map[string]float64)
-	data.ResponseCode, data.Success = getDefaultFormattedSpanStatus(span.Status())
+	data.ResponseCode, data.Success = getDefaultFormattedLogRecordStatus(logRecord.Status())
 
-	switch incomingSpanType {
-	case httpSpanType:
-		fillRequestDataHTTP(span, data)
-	case rpcSpanType:
-		fillRequestDataRPC(span, data)
-	case messagingSpanType:
-		fillRequestDataMessaging(span, data)
-	case unknownSpanType:
-		copyAttributesWithoutMapping(span.Attributes(), data.Properties, data.Measurements)
+	switch incomingLogRecordType {
+	case httpLogRecordType:
+		fillRequestDataHTTP(logRecord, data)
+	case rpcLogRecordType:
+		fillRequestDataRPC(logRecord, data)
+	case messagingLogRecordType:
+		fillRequestDataMessaging(logRecord, data)
+	case unknownLogRecordType:
+		copyAttributesWithoutMapping(logRecord.Attributes(), data.Properties, data.Measurements)
 	}
 
 	return data
 }
 
-// Maps Span to AppInsights RemoteDependencyData
-func spanToRemoteDependencyData(span pdata.Span, incomingSpanType spanType) *contracts.RemoteDependencyData {
+// Maps LogRecord to AppInsights RemoteDependencyData
+func logRecordToRemoteDependencyData(logRecord pdata.LogRecord, incomingLogRecordType logRecordType) *contracts.RemoteDependencyData {
 	// https://github.com/microsoft/ApplicationInsights-Go/blob/master/appinsights/contracts/remotedependencydata.go
-	// Start with some reasonable default for dependent spans.
+	// Start with some reasonable default for dependent logRecords.
 	data := contracts.NewRemoteDependencyData()
-	data.Id = span.SpanID().HexString()
-	data.Name = span.Name()
-	data.ResultCode, data.Success = getDefaultFormattedSpanStatus(span.Status())
-	data.Duration = formatSpanDuration(span)
+	data.Id = idToHex(logRecord.SpanID())
+	data.Name = logRecord.Name()
+	data.ResultCode, data.Success = getDefaultFormattedLogRecordStatus(logRecord.Status())
+	data.Duration = formatLogRecordDuration(logRecord)
 	data.Properties = make(map[string]string)
 	data.Measurements = make(map[string]float64)
 
-	switch incomingSpanType {
-	case httpSpanType:
-		fillRemoteDependencyDataHTTP(span, data)
-	case rpcSpanType:
-		fillRemoteDependencyDataRPC(span, data)
-	case databaseSpanType:
-		fillRemoteDependencyDataDatabase(span, data)
-	case messagingSpanType:
-		fillRemoteDependencyDataMessaging(span, data)
-	case unknownSpanType:
-		copyAttributesWithoutMapping(span.Attributes(), data.Properties, data.Measurements)
+	switch incomingLogRecordType {
+	case httpLogRecordType:
+		fillRemoteDependencyDataHTTP(logRecord, data)
+	case rpcLogRecordType:
+		fillRemoteDependencyDataRPC(logRecord, data)
+	case databaseLogRecordType:
+		fillRemoteDependencyDataDatabase(logRecord, data)
+	case messagingLogRecordType:
+		fillRemoteDependencyDataMessaging(logRecord, data)
+	case unknownLogRecordType:
+		copyAttributesWithoutMapping(logRecord.Attributes(), data.Properties, data.Measurements)
 	}
 
 	return data
@@ -216,10 +186,10 @@ func getFormattedHTTPStatusValues(statusCode int64) (statusAsString string, succ
 	return strconv.FormatInt(statusCode, 10), statusCode >= 100 && statusCode <= 399
 }
 
-// Maps HTTP Server Span to AppInsights RequestData
-// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md#semantic-conventions-for-http-spans
-func fillRequestDataHTTP(span pdata.Span, data *contracts.RequestData) {
-	attrs := copyAndExtractHTTPAttributes(span.Attributes(), data.Properties, data.Measurements)
+// Maps HTTP Server LogRecord to AppInsights RequestData
+// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md#semantic-conventions-for-http-logRecords
+func fillRequestDataHTTP(logRecord pdata.LogRecord, data *contracts.RequestData) {
+	attrs := copyAndExtractHTTPAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	if attrs.HTTPStatusCode != 0 {
 		data.ResponseCode, data.Success = getFormattedHTTPStatusValues(attrs.HTTPStatusCode)
@@ -233,12 +203,12 @@ func fillRequestDataHTTP(span pdata.Span, data *contracts.RequestData) {
 	sb.WriteString(attrs.HTTPMethod)
 	sb.WriteString(" ")
 
-	// Use httpRoute if available otherwise fallback to the span name
+	// Use httpRoute if available otherwise fallback to the logRecord name
 	// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md#name
 	if attrs.HTTPRoute != "" {
 		sb.WriteString(prefixIfNecessary(attrs.HTTPRoute, "/"))
 	} else {
-		sb.WriteString(span.Name())
+		sb.WriteString(logRecord.Name())
 	}
 
 	data.Name = sb.String()
@@ -302,10 +272,10 @@ func fillRequestDataHTTP(span pdata.Span, data *contracts.RequestData) {
 	}
 }
 
-// Maps HTTP Client Span to AppInsights RemoteDependencyData
+// Maps HTTP Client LogRecord to AppInsights RemoteDependencyData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md
-func fillRemoteDependencyDataHTTP(span pdata.Span, data *contracts.RemoteDependencyData) {
-	attrs := copyAndExtractHTTPAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRemoteDependencyDataHTTP(logRecord pdata.LogRecord, data *contracts.RemoteDependencyData) {
+	attrs := copyAndExtractHTTPAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	data.Type = "HTTP"
 	if attrs.HTTPStatusCode != 0 {
@@ -389,10 +359,10 @@ func fillRemoteDependencyDataHTTP(span pdata.Span, data *contracts.RemoteDepende
 	}
 }
 
-// Maps RPC Server Span to AppInsights RequestData
+// Maps RPC Server LogRecord to AppInsights RequestData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/rpc.md
-func fillRequestDataRPC(span pdata.Span, data *contracts.RequestData) {
-	attrs := copyAndExtractRPCAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRequestDataRPC(logRecord pdata.LogRecord, data *contracts.RequestData) {
+	attrs := copyAndExtractRPCAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	var sb strings.Builder
 
@@ -413,10 +383,10 @@ func fillRequestDataRPC(span pdata.Span, data *contracts.RequestData) {
 	data.Source = sb.String()
 }
 
-// Maps RPC Client Span to AppInsights RemoteDependencyData
+// Maps RPC Client LogRecord to AppInsights RemoteDependencyData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/rpc.md
-func fillRemoteDependencyDataRPC(span pdata.Span, data *contracts.RemoteDependencyData) {
-	attrs := copyAndExtractRPCAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRemoteDependencyDataRPC(logRecord pdata.LogRecord, data *contracts.RemoteDependencyData) {
+	attrs := copyAndExtractRPCAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	// Set the .Data property to .Name which contain the full RPC method
 	data.Data = data.Name
@@ -428,10 +398,10 @@ func fillRemoteDependencyDataRPC(span pdata.Span, data *contracts.RemoteDependen
 	data.Target = sb.String()
 }
 
-// Maps Database Client Span to AppInsights RemoteDependencyData
+// Maps Database Client LogRecord to AppInsights RemoteDependencyData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/database.md
-func fillRemoteDependencyDataDatabase(span pdata.Span, data *contracts.RemoteDependencyData) {
-	attrs := copyAndExtractDatabaseAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRemoteDependencyDataDatabase(logRecord pdata.LogRecord, data *contracts.RemoteDependencyData) {
+	attrs := copyAndExtractDatabaseAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	data.Type = attrs.DBSystem
 
@@ -446,10 +416,10 @@ func fillRemoteDependencyDataDatabase(span pdata.Span, data *contracts.RemoteDep
 	data.Target = sb.String()
 }
 
-// Maps Messaging Consumer/Server Span to AppInsights RequestData
+// Maps Messaging Consumer/Server LogRecord to AppInsights RequestData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/messaging.md
-func fillRequestDataMessaging(span pdata.Span, data *contracts.RequestData) {
-	attrs := copyAndExtractMessagingAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRequestDataMessaging(logRecord pdata.LogRecord, data *contracts.RequestData) {
+	attrs := copyAndExtractMessagingAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	// TODO Understand how to map attributes to RequestData fields
 	if attrs.MessagingURL != "" {
@@ -461,10 +431,10 @@ func fillRequestDataMessaging(span pdata.Span, data *contracts.RequestData) {
 	}
 }
 
-// Maps Messaging Producer/Client Span to AppInsights RemoteDependencyData
+// Maps Messaging Producer/Client LogRecord to AppInsights RemoteDependencyData
 // https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/messaging.md
-func fillRemoteDependencyDataMessaging(span pdata.Span, data *contracts.RemoteDependencyData) {
-	attrs := copyAndExtractMessagingAttributes(span.Attributes(), data.Properties, data.Measurements)
+func fillRemoteDependencyDataMessaging(logRecord pdata.LogRecord, data *contracts.RemoteDependencyData) {
+	attrs := copyAndExtractMessagingAttributes(logRecord.Attributes(), data.Properties, data.Measurements)
 
 	// TODO Understand how to map attributes to RemoteDependencyData fields
 	data.Data = attrs.MessagingURL
@@ -505,7 +475,7 @@ func copyAttributesWithoutMapping(
 	copyAndMapAttributes(attributeMap, properties, measurements, nil)
 }
 
-// Attribute extraction logic for HTTP Span attributes
+// Attribute extraction logic for HTTP LogRecord attributes
 func copyAndExtractHTTPAttributes(
 	attributeMap pdata.AttributeMap,
 	properties map[string]string,
@@ -521,7 +491,7 @@ func copyAndExtractHTTPAttributes(
 	return attrs
 }
 
-// Attribute extraction logic for RPC Span attributes
+// Attribute extraction logic for RPC LogRecord attributes
 func copyAndExtractRPCAttributes(
 	attributeMap pdata.AttributeMap,
 	properties map[string]string,
@@ -537,7 +507,7 @@ func copyAndExtractRPCAttributes(
 	return attrs
 }
 
-// Attribute extraction logic for Database Span attributes
+// Attribute extraction logic for Database LogRecord attributes
 func copyAndExtractDatabaseAttributes(
 	attributeMap pdata.AttributeMap,
 	properties map[string]string,
@@ -553,7 +523,7 @@ func copyAndExtractDatabaseAttributes(
 	return attrs
 }
 
-// Attribute extraction logic for Messaging Span attributes
+// Attribute extraction logic for Messaging LogRecord attributes
 func copyAndExtractMessagingAttributes(
 	attributeMap pdata.AttributeMap,
 	properties map[string]string,
@@ -569,55 +539,38 @@ func copyAndExtractMessagingAttributes(
 	return attrs
 }
 
-func formatSpanDuration(span pdata.Span) string {
-	startTime := toTime(span.StartTime())
-	endTime := toTime(span.EndTime())
-	return formatDuration(endTime.Sub(startTime))
-}
-
-// Maps incoming Span to a type defined in the specification
-func mapIncomingSpanToType(attributeMap pdata.AttributeMap) spanType {
+// Maps incoming LogRecord to a type defined in the specification
+func mapIncomingLogRecordToType(attributeMap pdata.AttributeMap) logRecordType {
 	// No attributes
 	if attributeMap.Len() == 0 {
-		return unknownSpanType
+		return unknownLogRecordType
 	}
 
 	// HTTP
 	if _, exists := attributeMap.Get(conventions.AttributeHTTPMethod); exists {
-		return httpSpanType
+		return httpLogRecordType
 	}
 
 	// RPC
 	if _, exists := attributeMap.Get(conventions.AttributeRPCSystem); exists {
-		return rpcSpanType
+		return rpcLogRecordType
 	}
 
 	// Database
 	if _, exists := attributeMap.Get(attributeDBSystem); exists {
-		return databaseSpanType
+		return databaseLogRecordType
 	}
 
 	// Messaging
 	if _, exists := attributeMap.Get(conventions.AttributeMessagingSystem); exists {
-		return messagingSpanType
+		return messagingLogRecordType
 	}
 
 	if _, exists := attributeMap.Get(conventions.AttributeFaaSTrigger); exists {
-		return faasSpanType
+		return faasLogRecordType
 	}
 
-	return unknownSpanType
-}
-
-// map to the standard gRPC status codes if specified, otherwise default to 0 - OK
-// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/api.md#status
-func getDefaultFormattedSpanStatus(spanStatus pdata.SpanStatus) (statusCodeAsString string, success bool) {
-	if spanStatus.IsNil() {
-		return "0", true
-	}
-
-	statusCode := int32(spanStatus.Code())
-	return strconv.FormatInt(int64(statusCode), 10), statusCode == int32(codes.OK)
+	return unknownLogRecordType
 }
 
 func writeFormattedPeerAddressFromNetworkAttributes(networkAttributes *NetworkAttributes, sb *strings.Builder) {
@@ -651,7 +604,7 @@ func setAttributeValueAsPropertyOrMeasurement(
 		measurements[key] = float64(attributeValue.IntVal())
 
 	case pdata.AttributeValueDOUBLE:
-		measurements[key] = attributeValue.DoubleVal()
+		measurements[key] = float64(attributeValue.DoubleVal())
 	}
 }
 
