@@ -29,6 +29,11 @@ const (
 	defaultLogTimestamp          			= pdata.TimestampUnixNano(0)
 )
 
+const (
+	DefaultFlag = 0b00000000
+	SampledFlag = 0b00000001
+)
+
 /*
 	The remainder of these methods are for building up test assets
 */
@@ -55,17 +60,22 @@ func getLogRecord(name string,
 }
 
 func getDefaultHTTPServerLog() pdata.LogRecord {
-	logRecord := pdata.NewLogRecord()
-	logRecord.InitEmpty()
-	//logRecord.Attributes().InitFromMap(initialAttributes)
-	//logRecord.Body().SetStringVal(body)
-	//logRecord.SetDroppedAttributesCount(droppedAttributesCount)
-	//logRecord.SetFlags(flags)
-	//logRecord.SetName(name)
-	//logRecord.SetSeverityNumber(severityNumber)
-	//logRecord.SetSeverityText(severityText)
-	logRecord.SetSpanID(pdata.NewSpanID(defaultSpanID))
-	logRecord.SetTimestamp(defaultLogTimestamp)
-	logRecord.SetTraceID(pdata.NewTraceID(defaultTraceID))
-	return logRecord
+	lr := pdata.NewLogRecord()
+	lr.InitEmpty()
+	lr.SetName("logName")
+	lr.Body().SetStringVal("mylog")
+	lr.SetSeverityNumber(pdata.SeverityNumberINFO)
+	lr.SetSeverityText("INFO")
+	lr.SetFlags(SampledFlag)
+	lr.Attributes().InitFromMap(map[string]pdata.AttributeValue{
+		"keyString": pdata.NewAttributeValueString("arithmetic"),
+		"keyInt":    pdata.NewAttributeValueInt(123),
+		"keyDouble": pdata.NewAttributeValueDouble(3245.6),
+		"keyBool":   pdata.NewAttributeValueBool(true),
+		"keyExists": pdata.NewAttributeValueString("present"),
+	})
+	lr.SetSpanID(pdata.NewSpanID(defaultSpanID))
+	lr.SetTimestamp(defaultLogTimestamp)
+	lr.SetTraceID(pdata.NewTraceID(defaultTraceID))
+	return lr
 }
