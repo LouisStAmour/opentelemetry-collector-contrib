@@ -36,7 +36,7 @@ type metricVisitor struct {
 	exporter  *metricExporter
 }
 
-// Called for each tuple of Resource, InstrumentationLibrary, and Span
+// Called for each tuple of Resource, InstrumentationLibrary, and Metric
 func (v *metricVisitor) visit(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary, metric pdata.Metric) (ok bool) {

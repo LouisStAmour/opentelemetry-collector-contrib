@@ -25,8 +25,8 @@ type mockMetricVisitor struct {
 	mock.Mock
 }
 
-func (v *mockMetricVisitor) visit(resource pdata.Resource, instrumentationLibrary pdata.InstrumentationLibrary, metricRecord pdata.MetricRecord) (ok bool) {
-	args := v.Called(resource, instrumentationLibrary, metricRecord)
+func (v *mockMetricVisitor) visit(resource pdata.Resource, instrumentationLibrary pdata.InstrumentationLibrary, metric pdata.Metric) (ok bool) {
+	args := v.Called(resource, instrumentationLibrary, metric)
 	return args.Bool(0)
 }
 
@@ -108,8 +108,8 @@ func TestMetricDataIterationMetricRecordIsNil(t *testing.T) {
 	r.InitEmpty()
 	rl.InstrumentationLibraryMetrics().Resize(1)
 	illr := rl.InstrumentationLibraryMetrics().At(0)
-	metricRecord := pdata.NewMetricRecord()
-	illr.Metrics().Append(metricRecord)
+	metric := pdata.NewMetric()
+	illr.Metrics().Append(metric)
 
 	visitor := getMockMetricVisitor(true)
 
