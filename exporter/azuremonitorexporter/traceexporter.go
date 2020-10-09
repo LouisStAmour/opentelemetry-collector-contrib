@@ -41,19 +41,21 @@ func (v *traceVisitor) visit(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary, span pdata.Span) (ok bool) {
 
-	envelope, err := spanToEnvelope(resource, instrumentationLibrary, span, v.exporter.logger)
+	envelopes, err := spanToEnvelopes(resource, instrumentationLibrary, span, v.exporter.logger)
 	if err != nil {
 		// record the error and short-circuit
 		v.err = consumererror.Permanent(err)
 		return false
 	}
 
-	// apply the instrumentation key to the envelope
-	envelope.IKey = v.exporter.config.InstrumentationKey
+	for _, envelope := range envelopes {
+		// apply the instrumentation key to the envelope
+		envelope.IKey = v.exporter.config.InstrumentationKey
 
-	// This is a fire and forget operation
-	v.exporter.transportChannel.Send(envelope)
-	v.processed++
+		// This is a fire and forget operation
+		v.exporter.transportChannel.Send(envelope)
+		v.processed++
+	}
 
 	return true
 }
