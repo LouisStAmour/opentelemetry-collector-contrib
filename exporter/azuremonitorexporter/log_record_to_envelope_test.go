@@ -141,7 +141,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet1(t *testing.T) {
 
 	appendToAttributeMap(spanAttributes, set)
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 
@@ -175,7 +175,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet2(t *testing.T) {
 			conventions.AttributeNetPeerIP: pdata.NewAttributeValueString("127.0.0.1"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 
@@ -205,7 +205,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet3(t *testing.T) {
 			conventions.AttributeNetPeerIP:    pdata.NewAttributeValueString("127.0.0.1"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 	defaultHTTPRequestDataValidations(t, span, data)
@@ -226,7 +226,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet4(t *testing.T) {
 			conventions.AttributeHTTPURL:        pdata.NewAttributeValueString("https://foo:81/bar?biz=baz"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 	defaultHTTPRequestDataValidations(t, span, data)
@@ -258,7 +258,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet1(t *testing.T) {
 			conventions.AttributeHTTPStatusCode: pdata.NewAttributeValueInt(400),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	commonRemoteDependencyDataValidations(t, span, data)
@@ -291,7 +291,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet2(t *testing.T) {
 			conventions.AttributeHTTPRoute: pdata.NewAttributeValueString("/bar/:baz_id"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	commonRemoteDependencyDataValidations(t, span, data)
@@ -319,7 +319,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet3(t *testing.T) {
 			conventions.AttributeHTTPTarget:     pdata.NewAttributeValueString("/bar?biz=baz"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultHTTPRemoteDependencyDataValidations(t, span, data)
@@ -342,7 +342,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet4(t *testing.T) {
 			conventions.AttributeHTTPTarget:     pdata.NewAttributeValueString("/bar?biz=baz"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultHTTPRemoteDependencyDataValidations(t, span, data)
@@ -362,7 +362,7 @@ func TestRPCServerSpanToRequestData(t *testing.T) {
 			conventions.AttributeNetPeerPort: pdata.NewAttributeValueInt(81),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 	defaultRPCRequestDataValidations(t, span, data, "foo:81")
@@ -375,7 +375,7 @@ func TestRPCServerSpanToRequestData(t *testing.T) {
 			conventions.AttributeNetPeerIP:   pdata.NewAttributeValueString("127.0.0.1"),
 		})
 
-	envelope, _ = spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ = spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	data = envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 	defaultRPCRequestDataValidations(t, span, data, "127.0.0.1:81")
 }
@@ -393,7 +393,7 @@ func TestRPCClientSpanToRemoteDependencyData(t *testing.T) {
 			conventions.AttributeNetPeerIP:   pdata.NewAttributeValueString("127.0.0.1"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultRPCRemoteDependencyDataValidations(t, span, data, "foo:81")
@@ -406,7 +406,7 @@ func TestRPCClientSpanToRemoteDependencyData(t *testing.T) {
 			conventions.AttributeNetPeerIP:   pdata.NewAttributeValueString("127.0.0.1"),
 		})
 
-	envelope, _ = spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ = spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	data = envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultRPCRemoteDependencyDataValidations(t, span, data, "127.0.0.1:81")
 }
@@ -424,7 +424,7 @@ func TestDatabaseClientSpanToRemoteDependencyData(t *testing.T) {
 			conventions.AttributeNetPeerPort: pdata.NewAttributeValueInt(81),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultDatabaseRemoteDependencyDataValidations(t, span, data)
@@ -440,7 +440,7 @@ func TestDatabaseClientSpanToRemoteDependencyData(t *testing.T) {
 			attributeDBOperation:             pdata.NewAttributeValueString(defaultDBOperation),
 		})
 
-	envelope, _ = spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ = spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	data = envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	assert.Equal(t, defaultDBOperation, data.Data)
 }
@@ -458,7 +458,7 @@ func TestMessagingConsumerSpanToRequestData(t *testing.T) {
 			conventions.AttributeNetPeerPort:  pdata.NewAttributeValueInt(81),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 	defaultMessagingRequestDataValidations(t, span, data)
@@ -472,7 +472,7 @@ func TestMessagingConsumerSpanToRequestData(t *testing.T) {
 			conventions.AttributeMessagingURL: pdata.NewAttributeValueString(""),
 		})
 
-	envelope, _ = spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ = spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	data = envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
 
 	assert.Equal(t, "foo:81", data.Source)
@@ -491,7 +491,7 @@ func TestMessagingProducerSpanToRequestData(t *testing.T) {
 			conventions.AttributeNetPeerPort:  pdata.NewAttributeValueInt(81),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultMessagingRemoteDependencyDataValidations(t, span, data)
@@ -505,7 +505,7 @@ func TestMessagingProducerSpanToRequestData(t *testing.T) {
 			conventions.AttributeMessagingURL: pdata.NewAttributeValueString(""),
 		})
 
-	envelope, _ = spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ = spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	data = envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 
 	assert.Equal(t, "foo:81", data.Target)
@@ -522,7 +522,7 @@ func TestUnknownInternalSpanToRemoteDependencyData(t *testing.T) {
 			"foo": pdata.NewAttributeValueString("bar"),
 		})
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultInternalRemoteDependencyDataValidations(t, span, data)
@@ -533,7 +533,7 @@ func TestUnspecifiedSpanToInProcRemoteDependencyData(t *testing.T) {
 	span := getDefaultInternalSpan()
 	span.SetKind(pdata.SpanKindUNSPECIFIED)
 
-	envelope, _ := spanToEnvelope(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	envelope, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RemoteDependencyData)
 	defaultInternalRemoteDependencyDataValidations(t, span, data)

@@ -59,13 +59,13 @@ type spanType int8
 // TODO: Consider always using Events instead of Messages as Messages can't handle being sent metrics?
 // TODO: Or use Message if logs don't have double/int64 metrics, and Events if it does?
 // TODO: Messages and Exceptions have severity, Events and Exceptions have metrics. Only Exceptions have both severity and metrics.
-// TODO: Exceptions also have ExceptionDetailsls, which in turn has StackFrame
+// TODO: Exceptions also have ExceptionDetails, which in turn has StackFrame
 // TODO: A number of ways of recording spans also let you record measurements - so we already have setAttributeValueAsPropertyOrMeasurement
-func spanToEnvelope(
+func spanToEnvelopes(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary,
 	span pdata.Span,
-	logger *zap.Logger) (*contracts.Envelope, error) {
+	logger *zap.Logger) ([]*contracts.Envelope, error) {
 
 	spanKind := span.Kind()
 
@@ -154,7 +154,8 @@ func spanToEnvelope(
 	sanitize(func() []string { return envelope.Sanitize() }, logger)
 	sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 
-	return envelope, nil
+	envelopes := []*contracts.Envelope{envelope}
+	return envelopes, nil
 }
 
 // Maps Server/Consumer Span to AppInsights RequestData
