@@ -41,19 +41,21 @@ func (v *metricVisitor) visit(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary, metric pdata.Metric) (ok bool) {
 
-	envelope, err := metricToEnvelope(resource, instrumentationLibrary, metric, v.exporter.logger)
+	envelopes, err := metricToEnvelopes(resource, instrumentationLibrary, metric, v.exporter.logger)
 	if err != nil {
 		// record the error and short-circuit
 		v.err = consumererror.Permanent(err)
 		return false
 	}
 
-	// apply the instrumentation key to the envelope
-	envelope.IKey = v.exporter.config.InstrumentationKey
+	for i := 0; i < len(envelopes); i++ {
+		// apply the instrumentation key to the envelope
+		envelopes[i].IKey = v.exporter.config.InstrumentationKey
 
-	// This is a fire and forget operation
-	v.exporter.transportChannel.Send(envelope)
-	v.processed++
+		// This is a fire and forget operation
+		v.exporter.transportChannel.Send(envelopes[i])
+		v.processed++
+	}
 
 	return true
 }
