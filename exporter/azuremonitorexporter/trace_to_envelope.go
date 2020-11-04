@@ -89,8 +89,10 @@ func spanToEnvelopes(
 		envelope.Name = requestData.EnvelopeName("")
 		envelope.Tags[contracts.OperationName] = requestData.Name
 
-		// Copy all the resource labels into the base data properties. Resource values are always strings
-		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { requestData.Properties[k] = v.StringVal() })
+		// Copy all the resource labels into the base data properties.
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+			setAttributeValueAsPropertyOrMeasurement(k, v, requestData.Properties, requestData.Measurements)
+		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
@@ -114,8 +116,10 @@ func spanToEnvelopes(
 
 		envelope.Name = data.EnvelopeName("")
 
-		// Copy all the resource labels into the base data properties. Resource values are always strings
-		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+		// Copy all the resource labels into the base data properties.
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+			setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
@@ -156,8 +160,10 @@ func spanToEnvelopes(
 				})
 			exceptionDetails.Sanitize()
 			data.Exceptions = []*contracts.ExceptionDetails{exceptionDetails}
-			// Copy all the resource labels into the base data properties. Resource values are always strings
-			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+			// Copy all the resource labels into the base data properties.
+			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+				setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+			})
 
 			// Copy the instrumentation properties
 			if !instrumentationLibrary.IsNil() {
@@ -176,8 +182,10 @@ func spanToEnvelopes(
 			data := contracts.NewEventData()
 			data.Name = event.Name()
 			copyAttributesWithoutMapping(event.Attributes(), data.Properties, data.Measurements)
-			// Copy all the resource labels into the base data properties. Resource values are always strings
-			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+			// Copy all the resource labels into the base data properties.
+			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+				setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+			})
 
 			// Copy the instrumentation properties
 			if !instrumentationLibrary.IsNil() {

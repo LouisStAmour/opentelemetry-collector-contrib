@@ -83,8 +83,6 @@ func logRecordToEnvelope(
 	}
 	envelope.Tags[contracts.OperationParentId] = "|" + traceIDHexString + "." + spanIDHexString
 
-	resourceAttributes := resource.Attributes()
-
 	// Application Insights Messages can have severity but not metrics,
 	// Application Insights Events can have metrics but not severity...
 	// Since Application Insights messages are more limited than events in terms of structured data,
@@ -98,8 +96,10 @@ func logRecordToEnvelope(
 			data.Properties[k] = tracetranslator.AttributeValueToString(v, false)
 		})
 
-		// Copy all the resource labels into the base data properties. Resource values are always strings
-		resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+		// Copy all the resource labels into the base data properties.
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+			data.Properties[k] = tracetranslator.AttributeValueToString(v, false)
+		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
@@ -127,8 +127,10 @@ func logRecordToEnvelope(
 		data.Properties["SeverityText"] = logRecord.SeverityText()
 		data.Properties["SeverityNumber"] = strconv.FormatInt(int64(logRecord.SeverityNumber()), 10)
 
-		// Copy all the resource labels into the base data properties. Resource values are always strings
-		resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+		// Copy all the resource labels into the base data properties.
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+			setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
@@ -149,17 +151,17 @@ func logRecordToEnvelope(
 
 	// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
 	// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
-	if serviceName, serviceNameExists := resourceAttributes.Get(conventions.AttributeServiceName); serviceNameExists {
+	if serviceName, serviceNameExists := resource.Attributes().Get(conventions.AttributeServiceName); serviceNameExists {
 		cloudRole := serviceName.StringVal()
 
-		if serviceNamespace, serviceNamespaceExists := resourceAttributes.Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
+		if serviceNamespace, serviceNamespaceExists := resource.Attributes().Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
 			cloudRole = serviceNamespace.StringVal() + "." + cloudRole
 		}
 
 		envelope.Tags[contracts.CloudRole] = cloudRole
 	}
 
-	if serviceInstance, exists := resourceAttributes.Get(conventions.AttributeServiceInstance); exists {
+	if serviceInstance, exists := resource.Attributes().Get(conventions.AttributeServiceInstance); exists {
 		envelope.Tags[contracts.CloudRoleInstance] = serviceInstance.StringVal()
 	}
 
