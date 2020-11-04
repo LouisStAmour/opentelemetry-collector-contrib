@@ -61,6 +61,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -89,6 +90,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -117,6 +119,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -145,6 +148,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -173,6 +177,7 @@ func metricToEnvelopes(
 			envelopeCount.Tags = make(map[string]string)
 			envelopeCount.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelopeCount.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -186,6 +191,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data = contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -203,6 +209,7 @@ func metricToEnvelopes(
 				envelopeBucket.Tags = make(map[string]string)
 				envelopeBucket.Time = envelope.Time
 				md := contracts.NewMetricData()
+				envelopeBucket.Name = md.EnvelopeName("")
 				dp.LabelsMap().ForEach( func(k string, v string) {
 					md.Properties[k] = v
 				})
@@ -234,6 +241,7 @@ func metricToEnvelopes(
 			envelopeCount.Tags = make(map[string]string)
 			envelopeCount.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
+			envelopeCount.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -247,6 +255,7 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data = contracts.NewMetricData()
+			envelope.Name = data.EnvelopeName("")
 			dp.LabelsMap().ForEach( func(k string, v string) {
 				data.Properties[k] = v
 			})
@@ -264,6 +273,7 @@ func metricToEnvelopes(
 				envelopeBucket.Tags = make(map[string]string)
 				envelopeBucket.Time = envelope.Time
 				md := contracts.NewMetricData()
+				envelopeBucket.Name = md.EnvelopeName("")
 				if j < len(dp.ExplicitBounds()) {
 					md.Properties["upper_bound"] = strconv.FormatFloat(dp.ExplicitBounds()[j], 'f', -1, 64)
 				}
