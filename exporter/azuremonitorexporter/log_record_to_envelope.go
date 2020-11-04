@@ -16,6 +16,7 @@ package azuremonitorexporter
 
 // Contains code common to both trace and metrics exporters
 import (
+	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 	"regexp"
 	"strconv"
@@ -82,6 +83,8 @@ func logRecordToEnvelope(
 	}
 	envelope.Tags[contracts.OperationParentId] = "|" + traceIDHexString + "." + spanIDHexString
 
+	resourceAttributes := resource.Attributes()
+
 	// Application Insights Messages can have severity but not metrics,
 	// Application Insights Events can have metrics but not severity...
 	// Since Application Insights messages are more limited than events in terms of structured data,
@@ -94,6 +97,21 @@ func logRecordToEnvelope(
 		logRecord.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
 			data.Properties[k] = tracetranslator.AttributeValueToString(v, false)
 		})
+
+		// Copy all the resource labels into the base data properties. Resource values are always strings
+		resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+
+		// Copy the instrumentation properties
+		if !instrumentationLibrary.IsNil() {
+			if instrumentationLibrary.Name() != "" {
+				data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+			}
+
+			if instrumentationLibrary.Version() != "" {
+				data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+			}
+		}
+
 		envelope.Data = data
 	} else {
 		data := contracts.NewEventData()
@@ -107,27 +125,25 @@ func logRecordToEnvelope(
 		}
 		data.Properties["SeverityText"] = logRecord.SeverityText()
 		data.Properties["SeverityNumber"] = strconv.FormatInt(int64(logRecord.SeverityNumber()), 10)
+
+		// Copy all the resource labels into the base data properties. Resource values are always strings
+		resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+
+		// Copy the instrumentation properties
+		if !instrumentationLibrary.IsNil() {
+			if instrumentationLibrary.Name() != "" {
+				data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+			}
+
+			if instrumentationLibrary.Version() != "" {
+				data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+			}
+		}
+
 		envelope.Data = data
 	}
 
-	var dataSanitizeFunc func() []string
-	var dataProperties map[string]string
-
-	resourceAttributes := resource.Attributes()
-
-	// Copy all the resource labels into the base data properties. Resource values are always strings
-	resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { dataProperties[k] = v.StringVal() })
-
-	// Copy the instrumentation properties
-	if !instrumentationLibrary.IsNil() {
-		if instrumentationLibrary.Name() != "" {
-			dataProperties[instrumentationLibraryName] = instrumentationLibrary.Name()
-		}
-
-		if instrumentationLibrary.Version() != "" {
-			dataProperties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
-		}
-	}
+	data := envelope.Data.(appinsights.TelemetryData)
 
 	// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
 	// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
@@ -146,7 +162,7 @@ func logRecordToEnvelope(
 	}
 
 	// Sanitize the base data, the envelope and envelope tags
-	sanitize(dataSanitizeFunc, logger)
+	sanitize(func() []string { return data.Sanitize() }, logger)
 	sanitize(func() []string { return envelope.Sanitize() }, logger)
 	sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 

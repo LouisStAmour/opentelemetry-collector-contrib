@@ -61,8 +61,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -89,8 +89,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -117,8 +117,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -145,8 +145,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -173,8 +173,8 @@ func metricToEnvelopes(
 			envelopeCount.Tags = make(map[string]string)
 			envelopeCount.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name() + "_count"
@@ -186,8 +186,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data = contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint = contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -203,6 +203,9 @@ func metricToEnvelopes(
 				envelopeBucket.Tags = make(map[string]string)
 				envelopeBucket.Time = envelope.Time
 				md := contracts.NewMetricData()
+				dp.LabelsMap().ForEach( func(k string, v string) {
+					md.Properties[k] = v
+				})
 				if j < len(dp.ExplicitBounds()) {
 					md.Properties["upper_bound"] = strconv.FormatFloat(dp.ExplicitBounds()[j], 'f', -1, 64)
 				}
@@ -231,8 +234,8 @@ func metricToEnvelopes(
 			envelopeCount.Tags = make(map[string]string)
 			envelopeCount.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data := contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint := contracts.NewDataPoint()
 			dataPoint.Name = metric.Name() + "_count"
@@ -244,8 +247,8 @@ func metricToEnvelopes(
 			envelope.Tags = make(map[string]string)
 			envelope.Time = toTime(dp.Timestamp()).Format(time.RFC3339Nano)
 			data = contracts.NewMetricData()
-			dp.LabelsMap().ForEach( func(k string, v pdata.StringValue) {
-				data.Properties[k] = v.Value()
+			dp.LabelsMap().ForEach( func(k string, v string) {
+				data.Properties[k] = v
 			})
 			dataPoint = contracts.NewDataPoint()
 			dataPoint.Name = metric.Name()
@@ -278,7 +281,6 @@ func metricToEnvelopes(
 	}
 
 	resourceAttributes := resource.Attributes()
-	var dataSanitizeFunc func() []string
 
 	for i := 0; i < len(envelopes); i++ {
 		envelope := envelopes[i]
@@ -315,7 +317,7 @@ func metricToEnvelopes(
 		}
 
 		// Sanitize the base data, the envelope and envelope tags
-		sanitize(dataSanitizeFunc, logger)
+		sanitize(func() []string { return data.Sanitize() }, logger)
 		sanitize(func() []string { return envelope.Sanitize() }, logger)
 		sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 	}
