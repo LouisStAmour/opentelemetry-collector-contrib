@@ -53,11 +53,6 @@ type spanType int8
 // Transforms a tuple of pdata.Resource, pdata.InstrumentationLibrary, pdata.Span into an AppInsights contracts.Envelope
 // This is the only method that should be targeted in the unit tests
 
-// TODO: Record SpanEvent as ApplicationInsights Events or Exception if Name == "exception"
-// TODO: SpanEvent attribute values can be string/bool or double/int64 - if string/bool, it's a property; if double/int64 it's a measurement?
-// TODO: In the above SpanEvent attribute processing, first ignore/handle known common attributes, then use rules of thumb above
-// TODO: Exceptions also have ExceptionDetails, which in turn has StackFrame
-// TODO: A number of ways of recording spans also let you record measurements - so we already have setAttributeValueAsPropertyOrMeasurement
 func spanToEnvelopes(
 	resource pdata.Resource,
 	instrumentationLibrary pdata.InstrumentationLibrary,
@@ -135,29 +130,97 @@ func spanToEnvelopes(
 	}
 
 	envelope.Data = data
+	envelopes := []*contracts.Envelope{envelope}
 
-	// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
-	// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
-	if serviceName, serviceNameExists := resource.Attributes().Get(conventions.AttributeServiceName); serviceNameExists {
-		cloudRole := serviceName.StringVal()
+	for i := 0; i < span.Events().Len(); i++ {
+		event := span.Events().At(i)
+		envelope := contracts.NewEnvelope()
+		envelope.Tags = make(map[string]string)
+		envelope.Time = toTime(span.StartTime()).Format(time.RFC3339Nano)
+		envelope.Tags[contracts.OperationId] = span.TraceID().HexString()
+		envelope.Tags[contracts.OperationParentId] = span.ParentSpanID().HexString()
+		if event.Name() == "exception" {
+			data := contracts.NewExceptionData()
+			exceptionDetails := contracts.NewExceptionDetails()
+			attributeMap.ForEach(
+				func(k string, v pdata.AttributeValue) {
+					if k == "exception.type" && v.Type() == pdata.AttributeValueSTRING {
+						exceptionDetails.TypeName = v.StringVal()
+					} else if k == "exception.message" && v.Type() == pdata.AttributeValueSTRING {
+						exceptionDetails.Message = v.StringVal()
+					} else if k == "exception.stacktrace" && v.Type() == pdata.AttributeValueSTRING {
+						exceptionDetails.Stack = v.StringVal()
+					} else {
+						setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+					}
+				})
+			exceptionDetails.Sanitize()
+			data.Exceptions = []*contracts.ExceptionDetails{exceptionDetails}
+			// Copy all the resource labels into the base data properties. Resource values are always strings
+			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
 
-		if serviceNamespace, serviceNamespaceExists := resource.Attributes().Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
-			cloudRole = serviceNamespace.StringVal() + "." + cloudRole
+			// Copy the instrumentation properties
+			if !instrumentationLibrary.IsNil() {
+				if instrumentationLibrary.Name() != "" {
+					data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+				}
+
+				if instrumentationLibrary.Version() != "" {
+					data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+				}
+			}
+
+			envelope.Name = data.EnvelopeName("")
+			envelope.Data = data
+		} else {
+			data := contracts.NewEventData()
+			data.Name = event.Name()
+			copyAttributesWithoutMapping(event.Attributes(), data.Properties, data.Measurements)
+			// Copy all the resource labels into the base data properties. Resource values are always strings
+			resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+
+			// Copy the instrumentation properties
+			if !instrumentationLibrary.IsNil() {
+				if instrumentationLibrary.Name() != "" {
+					data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+				}
+
+				if instrumentationLibrary.Version() != "" {
+					data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+				}
+			}
+
+			envelope.Name = data.EnvelopeName("")
+			envelope.Data = data
+		}
+	}
+
+	for i := 0; i < len(envelopes); i++ {
+		envelope := envelopes[i]
+		data := envelope.Data.(appinsights.TelemetryData)
+
+		// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
+		// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
+		if serviceName, serviceNameExists := resource.Attributes().Get(conventions.AttributeServiceName); serviceNameExists {
+			cloudRole := serviceName.StringVal()
+
+			if serviceNamespace, serviceNamespaceExists := resource.Attributes().Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
+				cloudRole = serviceNamespace.StringVal() + "." + cloudRole
+			}
+
+			envelope.Tags[contracts.CloudRole] = cloudRole
 		}
 
-		envelope.Tags[contracts.CloudRole] = cloudRole
+		if serviceInstance, exists := resource.Attributes().Get(conventions.AttributeServiceInstance); exists {
+			envelope.Tags[contracts.CloudRoleInstance] = serviceInstance.StringVal()
+		}
+
+		// Sanitize the base data, the envelope and envelope tags
+		sanitize(func() []string { return data.Sanitize() }, logger)
+		sanitize(func() []string { return envelope.Sanitize() }, logger)
+		sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 	}
 
-	if serviceInstance, exists := resource.Attributes().Get(conventions.AttributeServiceInstance); exists {
-		envelope.Tags[contracts.CloudRoleInstance] = serviceInstance.StringVal()
-	}
-
-	// Sanitize the base data, the envelope and envelope tags
-	sanitize(func() []string { return data.Sanitize() }, logger)
-	sanitize(func() []string { return envelope.Sanitize() }, logger)
-	sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
-
-	envelopes := []*contracts.Envelope{envelope}
 	return envelopes, nil
 }
 
