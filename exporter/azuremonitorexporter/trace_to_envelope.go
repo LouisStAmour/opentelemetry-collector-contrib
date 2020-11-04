@@ -56,10 +56,6 @@ type spanType int8
 // TODO: Record SpanEvent as ApplicationInsights Events or Exception if Name == "exception"
 // TODO: SpanEvent attribute values can be string/bool or double/int64 - if string/bool, it's a property; if double/int64 it's a measurement?
 // TODO: In the above SpanEvent attribute processing, first ignore/handle known common attributes, then use rules of thumb above
-// TODO: Record log entries as Messages? or Events? or Exception if the log name is "exception"? (Less clear!)
-// TODO: Consider always using Events instead of Messages as Messages can't handle being sent metrics?
-// TODO: Or use Message if logs don't have double/int64 metrics, and Events if it does?
-// TODO: Messages and Exceptions have severity, Events and Exceptions have metrics. Only Exceptions have both severity and metrics.
 // TODO: Exceptions also have ExceptionDetails, which in turn has StackFrame
 // TODO: A number of ways of recording spans also let you record measurements - so we already have setAttributeValueAsPropertyOrMeasurement
 func spanToEnvelopes(
@@ -91,68 +87,73 @@ func spanToEnvelopes(
 	envelope.Tags[contracts.OperationId] = traceIDHexString
 	envelope.Tags[contracts.OperationParentId] = idToHex(span.ParentSpanID().Bytes())
 
-	data := contracts.NewData()
-	var dataSanitizeFunc func() []string
-	var dataProperties map[string]string
+	var data appinsights.TelemetryData
 
 	if spanKind == pdata.SpanKindSERVER || spanKind == pdata.SpanKindCONSUMER {
 		requestData := spanToRequestData(span, incomingSpanType)
-		dataProperties = requestData.Properties
-		dataSanitizeFunc = requestData.Sanitize
 		envelope.Name = requestData.EnvelopeName("")
 		envelope.Tags[contracts.OperationName] = requestData.Name
-		data.BaseData = requestData
-		data.BaseType = requestData.BaseType()
+
+		// Copy all the resource labels into the base data properties. Resource values are always strings
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { requestData.Properties[k] = v.StringVal() })
+
+		// Copy the instrumentation properties
+		if !instrumentationLibrary.IsNil() {
+			if instrumentationLibrary.Name() != "" {
+				requestData.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+			}
+
+			if instrumentationLibrary.Version() != "" {
+				requestData.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+			}
+		}
+
+		data = requestData
 	} else if spanKind == pdata.SpanKindCLIENT || spanKind == pdata.SpanKindPRODUCER || spanKind == pdata.SpanKindINTERNAL {
-		remoteDependencyData := spanToRemoteDependencyData(span, incomingSpanType)
+		data := spanToRemoteDependencyData(span, incomingSpanType)
 
 		// Regardless of the detected Span type, if the SpanKind is Internal we need to set data.Type to InProc
 		if spanKind == pdata.SpanKindINTERNAL {
-			remoteDependencyData.Type = "InProc"
+			data.Type = "InProc"
 		}
 
-		dataProperties = remoteDependencyData.Properties
-		dataSanitizeFunc = remoteDependencyData.Sanitize
-		envelope.Name = remoteDependencyData.EnvelopeName("")
-		data.BaseData = remoteDependencyData
-		data.BaseType = remoteDependencyData.BaseType()
+		envelope.Name = data.EnvelopeName("")
+
+		// Copy all the resource labels into the base data properties. Resource values are always strings
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+
+		// Copy the instrumentation properties
+		if !instrumentationLibrary.IsNil() {
+			if instrumentationLibrary.Name() != "" {
+				data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+			}
+
+			if instrumentationLibrary.Version() != "" {
+				data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+			}
+		}
 	}
 
 	envelope.Data = data
-	resourceAttributes := resource.Attributes()
-
-	// Copy all the resource labels into the base data properties. Resource values are always strings
-	resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { dataProperties[k] = v.StringVal() })
-
-	// Copy the instrumentation properties
-	if !instrumentationLibrary.IsNil() {
-		if instrumentationLibrary.Name() != "" {
-			dataProperties[instrumentationLibraryName] = instrumentationLibrary.Name()
-		}
-
-		if instrumentationLibrary.Version() != "" {
-			dataProperties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
-		}
-	}
 
 	// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
 	// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
-	if serviceName, serviceNameExists := resourceAttributes.Get(conventions.AttributeServiceName); serviceNameExists {
+	if serviceName, serviceNameExists := resource.Attributes().Get(conventions.AttributeServiceName); serviceNameExists {
 		cloudRole := serviceName.StringVal()
 
-		if serviceNamespace, serviceNamespaceExists := resourceAttributes.Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
+		if serviceNamespace, serviceNamespaceExists := resource.Attributes().Get(conventions.AttributeServiceNamespace); serviceNamespaceExists {
 			cloudRole = serviceNamespace.StringVal() + "." + cloudRole
 		}
 
 		envelope.Tags[contracts.CloudRole] = cloudRole
 	}
 
-	if serviceInstance, exists := resourceAttributes.Get(conventions.AttributeServiceInstance); exists {
+	if serviceInstance, exists := resource.Attributes().Get(conventions.AttributeServiceInstance); exists {
 		envelope.Tags[contracts.CloudRoleInstance] = serviceInstance.StringVal()
 	}
 
 	// Sanitize the base data, the envelope and envelope tags
-	sanitize(dataSanitizeFunc, logger)
+	sanitize(func() []string { return data.Sanitize() }, logger)
 	sanitize(func() []string { return envelope.Sanitize() }, logger)
 	sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 

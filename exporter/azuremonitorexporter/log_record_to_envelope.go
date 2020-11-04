@@ -72,12 +72,12 @@ func logRecordToEnvelope(
 	envelope := contracts.NewEnvelope()
 	envelope.Tags = make(map[string]string)
 	envelope.Time = toTime(logRecord.Timestamp()).Format(time.RFC3339Nano)
-	traceIDHexString := idToHex(logRecord.TraceID().Bytes())
+	traceIDHexString := logRecord.TraceID().HexString()
 	if len(traceIDHexString) == 0 {
 		traceIDHexString = "00000000000000000000000000000000"
 	}
 	envelope.Tags[contracts.OperationId] = traceIDHexString
-	spanIDHexString := idToHex(logRecord.SpanID().Bytes())
+	spanIDHexString := logRecord.SpanID().HexString()
 	if len(spanIDHexString) == 0 {
 		spanIDHexString = "0000000000000000"
 	}
@@ -112,6 +112,7 @@ func logRecordToEnvelope(
 			}
 		}
 
+		envelope.Name = data.EnvelopeName("")
 		envelope.Data = data
 	} else {
 		data := contracts.NewEventData()
@@ -140,6 +141,7 @@ func logRecordToEnvelope(
 			}
 		}
 
+		envelope.Name = data.EnvelopeName("")
 		envelope.Data = data
 	}
 
