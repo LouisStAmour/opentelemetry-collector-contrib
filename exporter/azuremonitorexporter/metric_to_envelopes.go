@@ -19,6 +19,7 @@ import (
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"
+	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 	"go.uber.org/zap"
 	"strconv"
 	"time"
@@ -296,8 +297,10 @@ func metricToEnvelopes(
 		envelope := envelopes[i]
 		data := envelope.Data.(contracts.MetricData)
 
-		// Copy all the resource labels into the base data properties. Resource values are always strings
-		resourceAttributes.ForEach(func(k string, v pdata.AttributeValue) { data.Properties[k] = v.StringVal() })
+		// Copy all the resource labels into the base data properties.
+		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
+			data.Properties[k] = tracetranslator.AttributeValueToString(v, false)
+		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
