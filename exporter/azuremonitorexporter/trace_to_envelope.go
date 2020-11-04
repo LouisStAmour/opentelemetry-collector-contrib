@@ -17,12 +17,12 @@ package azuremonitorexporter
 // Contains code common to both trace and metrics exporters
 import (
 	"errors"
-	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"

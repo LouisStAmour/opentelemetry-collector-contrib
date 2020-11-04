@@ -16,13 +16,14 @@ package azuremonitorexporter
 
 // Contains code common to both trace and metrics exporters
 import (
+	"strconv"
+	"time"
+
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 	"go.uber.org/zap"
-	"strconv"
-	"time"
 )
 
 // Transforms a tuple of pdata.Resource, pdata.InstrumentationLibrary, pdata.LogRecord into an AppInsights contracts.Envelope

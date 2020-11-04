@@ -80,5 +80,5 @@ func newMetricsExporter(config *Config, transportChannel transportChannel, logge
 		logger:           logger,
 	}
 
-	return exporterhelper.NewMetricsExporter(config, exporter.onMetricData)
+	return exporterhelper.NewMetricsExporter(config, logger, exporter.onMetricData)
 }
