@@ -138,6 +138,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet1(t *testing.T) {
 	appendToAttributeMap(spanAttributes, set)
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
@@ -173,6 +174,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet2(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
 	data := envelope.Data.(*contracts.Data).BaseData.(*contracts.RequestData)
@@ -204,6 +206,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet3(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
@@ -227,6 +230,7 @@ func TestHTTPServerSpanToRequestDataAttributeSet4(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
@@ -261,6 +265,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet1(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -296,6 +301,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet2(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -326,6 +332,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet3(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -351,6 +358,7 @@ func TestHTTPClientSpanToRemoteDependencyAttributeSet4(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -373,6 +381,7 @@ func TestRPCServerSpanToRequestData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
@@ -408,6 +417,7 @@ func TestRPCClientSpanToRemoteDependencyData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -443,6 +453,7 @@ func TestDatabaseClientSpanToRemoteDependencyData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -481,6 +492,7 @@ func TestMessagingConsumerSpanToRequestData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRequestDataEnvelopeName)
@@ -518,6 +530,7 @@ func TestMessagingProducerSpanToRequestData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -553,6 +566,7 @@ func TestUnknownInternalSpanToRemoteDependencyData(t *testing.T) {
 		})
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
@@ -566,6 +580,7 @@ func TestUnspecifiedSpanToInProcRemoteDependencyData(t *testing.T) {
 	span.SetKind(pdata.SpanKindUNSPECIFIED)
 
 	envelopes, _ := spanToEnvelopes(defaultResource, defaultInstrumentationLibrary, span, zap.NewNop())
+	assert.Equal(t, 1, len(envelopes))
 	envelope := envelopes[0]
 
 	commonEnvelopeValidations(t, span, envelope, defaultRemoteDependencyDataEnvelopeName)
