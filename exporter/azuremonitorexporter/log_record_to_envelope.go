@@ -113,7 +113,10 @@ func logRecordToEnvelope(
 		}
 
 		envelope.Name = data.EnvelopeName("")
-		envelope.Data = data
+		dataWrapper := contracts.NewData()
+		dataWrapper.BaseType = data.BaseType()
+		dataWrapper.BaseData = data
+		envelope.Data = dataWrapper
 	} else {
 		data := contracts.NewEventData()
 		copyAttributesWithoutMapping(logRecord.Attributes(), data.Properties, data.Measurements)
@@ -144,10 +147,13 @@ func logRecordToEnvelope(
 		}
 
 		envelope.Name = data.EnvelopeName("")
-		envelope.Data = data
+		dataWrapper := contracts.NewData()
+		dataWrapper.BaseType = data.BaseType()
+		dataWrapper.BaseData = data
+		envelope.Data = dataWrapper
 	}
 
-	data := envelope.Data.(appinsights.TelemetryData)
+	data := envelope.Data.(*contracts.Data)
 
 	// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
 	// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
@@ -167,6 +173,7 @@ func logRecordToEnvelope(
 
 	// Sanitize the base data, the envelope and envelope tags
 	sanitize(func() []string { return data.Sanitize() }, logger)
+	sanitize(func() []string { return data.BaseData.(appinsights.TelemetryData).Sanitize() }, logger)
 	sanitize(func() []string { return envelope.Sanitize() }, logger)
 	sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 

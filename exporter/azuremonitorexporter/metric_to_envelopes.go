@@ -71,7 +71,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = float64(dp.Value())
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope)
 		}
@@ -100,7 +103,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = dp.Value()
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope)
 		}
@@ -129,7 +135,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = float64(dp.Value())
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope)
 		}
@@ -158,7 +167,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = dp.Value()
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope)
 		}
@@ -187,7 +199,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name() + "_count"
 			dataPoint.Value = float64(dp.Count())
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelopeCount.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelopeCount.Data = dataWrapper
 
 			envelope := contracts.NewEnvelope()
 			envelope.Tags = make(map[string]string)
@@ -201,7 +216,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = float64(dp.Sum())
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper = contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope, envelopeCount)
 
@@ -222,7 +240,10 @@ func metricToEnvelopes(
 				dataPoint.Name = bucketName
 				dataPoint.Value = float64(dp.BucketCounts()[j])
 				md.Metrics = []*contracts.DataPoint { dataPoint }
-				envelopeBucket.Data = md
+				dataWrapper = contracts.NewData()
+				dataWrapper.BaseType = md.BaseType()
+				dataWrapper.BaseData = md
+				envelopeBucket.Data = dataWrapper
 				envelopes = append(envelopes, envelopeBucket)
 			}
 		}
@@ -251,7 +272,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name() + "_count"
 			dataPoint.Value = float64(dp.Count())
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelopeCount.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelopeCount.Data = dataWrapper
 
 			envelope := contracts.NewEnvelope()
 			envelope.Tags = make(map[string]string)
@@ -265,7 +289,10 @@ func metricToEnvelopes(
 			dataPoint.Name = metric.Name()
 			dataPoint.Value = dp.Sum()
 			data.Metrics = []*contracts.DataPoint { dataPoint }
-			envelope.Data = data
+			dataWrapper = contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 
 			envelopes = append(envelopes, envelope, envelopeCount)
 
@@ -283,7 +310,10 @@ func metricToEnvelopes(
 				dataPoint.Name = bucketName
 				dataPoint.Value = float64(dp.BucketCounts()[j])
 				md.Metrics = []*contracts.DataPoint { dataPoint }
-				envelopeBucket.Data = md
+				dataWrapper = contracts.NewData()
+				dataWrapper.BaseType = md.BaseType()
+				dataWrapper.BaseData = md
+				envelopeBucket.Data = dataWrapper
 				envelopes = append(envelopes, envelopeBucket)
 			}
 		}
@@ -296,7 +326,7 @@ func metricToEnvelopes(
 
 	for i := 0; i < len(envelopes); i++ {
 		envelope := envelopes[i]
-		data := envelope.Data.(contracts.MetricData)
+		data := envelope.Data.(*contracts.Data).BaseData.(contracts.MetricData)
 
 		// Copy all the resource labels into the base data properties.
 		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
@@ -332,6 +362,7 @@ func metricToEnvelopes(
 
 		// Sanitize the base data, the envelope and envelope tags
 		sanitize(func() []string { return data.Sanitize() }, logger)
+		sanitize(func() []string { return envelope.Data.(*contracts.Data).Sanitize() }, logger)
 		sanitize(func() []string { return envelope.Sanitize() }, logger)
 		sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 	}

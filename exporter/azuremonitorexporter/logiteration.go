@@ -42,11 +42,6 @@ func AcceptLogs(logs pdata.Logs, v LogVisitor) {
 		resource := rl.Resource()
 		instrumentationLibraryLogRecordsSlice := rl.InstrumentationLibraryLogs()
 
-		if resource.IsNil() {
-			// resource is required
-			continue
-		}
-
 		for i := 0; i < instrumentationLibraryLogRecordsSlice.Len(); i++ {
 			instrumentationLibraryLogRecords := instrumentationLibraryLogRecordsSlice.At(i)
 

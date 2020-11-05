@@ -83,8 +83,6 @@ func spanToEnvelopes(
 	envelope.Tags[contracts.OperationId] = traceIDHexString
 	envelope.Tags[contracts.OperationParentId] = idToHex(span.ParentSpanID().Bytes())
 
-	var data appinsights.TelemetryData
-
 	if spanKind == pdata.SpanKindSERVER || spanKind == pdata.SpanKindCONSUMER {
 		requestData := spanToRequestData(span, incomingSpanType)
 		envelope.Name = requestData.EnvelopeName("")
@@ -106,35 +104,42 @@ func spanToEnvelopes(
 			}
 		}
 
-		data = requestData
+		dataWrapper := contracts.NewData()
+		dataWrapper.BaseType = requestData.BaseType()
+		dataWrapper.BaseData = requestData
+		envelope.Data = dataWrapper
 	} else if spanKind == pdata.SpanKindCLIENT || spanKind == pdata.SpanKindPRODUCER || spanKind == pdata.SpanKindINTERNAL {
-		data := spanToRemoteDependencyData(span, incomingSpanType)
+		remoteDependencyData := spanToRemoteDependencyData(span, incomingSpanType)
 
 		// Regardless of the detected Span type, if the SpanKind is Internal we need to set data.Type to InProc
 		if spanKind == pdata.SpanKindINTERNAL {
-			data.Type = "InProc"
+			remoteDependencyData.Type = "InProc"
 		}
 
-		envelope.Name = data.EnvelopeName("")
+		envelope.Name = remoteDependencyData.EnvelopeName("")
 
 		// Copy all the resource labels into the base data properties.
 		resource.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
-			setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
+			setAttributeValueAsPropertyOrMeasurement(k, v, remoteDependencyData.Properties, remoteDependencyData.Measurements)
 		})
 
 		// Copy the instrumentation properties
 		if !instrumentationLibrary.IsNil() {
 			if instrumentationLibrary.Name() != "" {
-				data.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
+				remoteDependencyData.Properties[instrumentationLibraryName] = instrumentationLibrary.Name()
 			}
 
 			if instrumentationLibrary.Version() != "" {
-				data.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
+				remoteDependencyData.Properties[instrumentationLibraryVersion] = instrumentationLibrary.Version()
 			}
 		}
+
+		dataWrapper := contracts.NewData()
+		dataWrapper.BaseType = remoteDependencyData.BaseType()
+		dataWrapper.BaseData = remoteDependencyData
+		envelope.Data = dataWrapper
 	}
 
-	envelope.Data = data
 	envelopes := []*contracts.Envelope{envelope}
 
 	for i := 0; i < span.Events().Len(); i++ {
@@ -144,16 +149,16 @@ func spanToEnvelopes(
 		envelope.Time = toTime(span.StartTime()).Format(time.RFC3339Nano)
 		envelope.Tags[contracts.OperationId] = span.TraceID().HexString()
 		envelope.Tags[contracts.OperationParentId] = span.ParentSpanID().HexString()
-		if event.Name() == "exception" {
+		if event.Name() == conventions.AttributeExceptionEventName {
 			data := contracts.NewExceptionData()
 			exceptionDetails := contracts.NewExceptionDetails()
 			attributeMap.ForEach(
 				func(k string, v pdata.AttributeValue) {
-					if k == "exception.type" && v.Type() == pdata.AttributeValueSTRING {
+					if k == conventions.AttributeExceptionType && v.Type() == pdata.AttributeValueSTRING {
 						exceptionDetails.TypeName = v.StringVal()
-					} else if k == "exception.message" && v.Type() == pdata.AttributeValueSTRING {
+					} else if k == conventions.AttributeExceptionMessage && v.Type() == pdata.AttributeValueSTRING {
 						exceptionDetails.Message = v.StringVal()
-					} else if k == "exception.stacktrace" && v.Type() == pdata.AttributeValueSTRING {
+					} else if k == conventions.AttributeExceptionStacktrace && v.Type() == pdata.AttributeValueSTRING {
 						exceptionDetails.Stack = v.StringVal()
 					} else {
 						setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
@@ -178,7 +183,10 @@ func spanToEnvelopes(
 			}
 
 			envelope.Name = data.EnvelopeName("")
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 		} else {
 			data := contracts.NewEventData()
 			data.Name = event.Name()
@@ -200,13 +208,16 @@ func spanToEnvelopes(
 			}
 
 			envelope.Name = data.EnvelopeName("")
-			envelope.Data = data
+			dataWrapper := contracts.NewData()
+			dataWrapper.BaseType = data.BaseType()
+			dataWrapper.BaseData = data
+			envelope.Data = dataWrapper
 		}
 	}
 
 	for i := 0; i < len(envelopes); i++ {
 		envelope := envelopes[i]
-		data := envelope.Data.(appinsights.TelemetryData)
+		data := envelope.Data.(*contracts.Data)
 
 		// Extract key service.* labels from the Resource labels and construct CloudRole and CloudRoleInstance envelope tags
 		// https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions
@@ -226,6 +237,7 @@ func spanToEnvelopes(
 
 		// Sanitize the base data, the envelope and envelope tags
 		sanitize(func() []string { return data.Sanitize() }, logger)
+		sanitize(func() []string { return data.BaseData.(appinsights.TelemetryData).Sanitize() }, logger)
 		sanitize(func() []string { return envelope.Sanitize() }, logger)
 		sanitize(func() []string { return contracts.SanitizeTags(envelope.Tags) }, logger)
 	}

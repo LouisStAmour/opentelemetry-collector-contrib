@@ -42,11 +42,6 @@ func AcceptMetrics(metrics pdata.Metrics, v MetricVisitor) {
 		resource := rl.Resource()
 		instrumentationLibraryMetricsSlice := rl.InstrumentationLibraryMetrics()
 
-		if resource.IsNil() {
-			// resource is required
-			continue
-		}
-
 		for i := 0; i < instrumentationLibraryMetricsSlice.Len(); i++ {
 			instrumentationLibraryMetrics := instrumentationLibraryMetricsSlice.At(i)
 
