@@ -92,6 +92,7 @@ func logRecordToEnvelope(
 		data := contracts.NewMessageData()
 		data.Message = logRecord.Body().StringVal()
 		data.SeverityLevel = sevLevel
+		data.Properties = map[string]string{}
 		logRecord.Attributes().ForEach(func(k string, v pdata.AttributeValue) {
 			data.Properties[k] = tracetranslator.AttributeValueToString(v, false)
 		})
@@ -119,6 +120,8 @@ func logRecordToEnvelope(
 		envelope.Data = dataWrapper
 	} else {
 		data := contracts.NewEventData()
+		data.Properties = map[string]string{}
+		data.Measurements = map[string]float64{}
 		copyAttributesWithoutMapping(logRecord.Attributes(), data.Properties, data.Measurements)
 		data.Name = logRecord.Name()
 		switch logRecord.Body().Type() {

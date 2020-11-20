@@ -17,7 +17,6 @@ package azuremonitorexporter
 // Contains code common to both trace and metrics exporters
 import (
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -79,9 +78,8 @@ func spanToEnvelopes(
 	envelope := contracts.NewEnvelope()
 	envelope.Tags = make(map[string]string)
 	envelope.Time = toTime(span.StartTime()).Format(time.RFC3339Nano)
-	traceIDHexString := idToHex(span.TraceID().Bytes())
-	envelope.Tags[contracts.OperationId] = traceIDHexString
-	envelope.Tags[contracts.OperationParentId] = idToHex(span.ParentSpanID().Bytes())
+	envelope.Tags[contracts.OperationId] = span.TraceID().HexString()
+	envelope.Tags[contracts.OperationParentId] = span.ParentSpanID().HexString()
 
 	if spanKind == pdata.SpanKindSERVER || spanKind == pdata.SpanKindCONSUMER {
 		requestData := spanToRequestData(span, incomingSpanType)
@@ -151,6 +149,8 @@ func spanToEnvelopes(
 		envelope.Tags[contracts.OperationParentId] = span.ParentSpanID().HexString()
 		if event.Name() == conventions.AttributeExceptionEventName {
 			data := contracts.NewExceptionData()
+			data.Properties = map[string]string{}
+			data.Measurements = map[string]float64{}
 			exceptionDetails := contracts.NewExceptionDetails()
 			attributeMap.ForEach(
 				func(k string, v pdata.AttributeValue) {
@@ -189,6 +189,8 @@ func spanToEnvelopes(
 			envelope.Data = dataWrapper
 		} else {
 			data := contracts.NewEventData()
+			data.Properties = map[string]string{}
+			data.Measurements = map[string]float64{}
 			data.Name = event.Name()
 			copyAttributesWithoutMapping(event.Attributes(), data.Properties, data.Measurements)
 			// Copy all the resource labels into the base data properties.
@@ -213,6 +215,7 @@ func spanToEnvelopes(
 			dataWrapper.BaseData = data
 			envelope.Data = dataWrapper
 		}
+		envelopes = append(envelopes, envelope)
 	}
 
 	for i := 0; i < len(envelopes); i++ {
@@ -250,7 +253,7 @@ func spanToRequestData(span pdata.Span, incomingSpanType spanType) *contracts.Re
 	// See https://github.com/microsoft/ApplicationInsights-Go/blob/master/appinsights/contracts/requestdata.go
 	// Start with some reasonable default for server spans.
 	data := contracts.NewRequestData()
-	data.Id = idToHex(span.SpanID().Bytes())
+	data.Id = span.SpanID().HexString()
 	data.Name = span.Name()
 	data.Duration = formatSpanDuration(span)
 	data.Properties = make(map[string]string)
@@ -276,7 +279,7 @@ func spanToRemoteDependencyData(span pdata.Span, incomingSpanType spanType) *con
 	// https://github.com/microsoft/ApplicationInsights-Go/blob/master/appinsights/contracts/remotedependencydata.go
 	// Start with some reasonable default for dependent spans.
 	data := contracts.NewRemoteDependencyData()
-	data.Id = idToHex(span.SpanID().Bytes())
+	data.Id = span.SpanID().HexString()
 	data.Name = span.Name()
 	data.ResultCode, data.Success = getDefaultFormattedSpanStatus(span.Status())
 	data.Duration = formatSpanDuration(span)
@@ -655,14 +658,6 @@ func copyAndExtractMessagingAttributes(
 		func(k string, v pdata.AttributeValue) { attrs.MapAttribute(k, v) })
 
 	return attrs
-}
-
-func idToHex(source []byte) string {
-	if source == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%02x", source)
 }
 
 func formatSpanDuration(span pdata.Span) string {
