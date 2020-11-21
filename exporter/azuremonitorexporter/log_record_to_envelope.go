@@ -36,24 +36,22 @@ var mapStringToAppInsightsSeverity = map[contracts.SeverityLevel]*regexp.Regexp{
 	contracts.Critical: regexp.MustCompile("(?i)^(?:Critical|Dpanic|Emergency|Panic|FATAL|Alert)[2-4]*$"),
 }
 
-func getSeverityLevel(logRecord pdata.LogRecord) (bool, contracts.SeverityLevel) {
-	if logRecord.SeverityNumber() != pdata.SeverityNumberUNDEFINED {
-		switch sev := logRecord.SeverityNumber(); {
-		case sev <= pdata.SeverityNumberDEBUG4:
+func getSeverityLevel(SeverityNumber pdata.SeverityNumber, SeverityText string) (bool, contracts.SeverityLevel) {
+	if SeverityNumber != pdata.SeverityNumberUNDEFINED {
+		if SeverityNumber <= pdata.SeverityNumberDEBUG4 {
 			return true, contracts.Verbose
-		case sev <= pdata.SeverityNumberINFO4:
+		} else if SeverityNumber <= pdata.SeverityNumberINFO4 {
 			return true, contracts.Information
-		case sev <= pdata.SeverityNumberWARN4:
+		} else if SeverityNumber <= pdata.SeverityNumberWARN4 {
 			return true, contracts.Warning
-		case sev <= pdata.SeverityNumberERROR4:
+		} else if SeverityNumber <= pdata.SeverityNumberERROR4 {
 			return true, contracts.Error
-		default:
+		} else {
 			return true, contracts.Critical
 		}
 	} else {
-		sev := logRecord.SeverityText()
 		for level, r := range mapStringToAppInsightsSeverity {
-			if r.MatchString(sev) {
+			if r.MatchString(SeverityText) {
 				return true, level
 			}
 		}
@@ -87,7 +85,7 @@ func logRecordToEnvelope(
 	// Application Insights Events can have metrics but not severity...
 	// Since Application Insights messages are more limited than events in terms of structured data,
 	// we only use them in certain scenarios...
-	sevFound, sevLevel := getSeverityLevel(logRecord)
+	sevFound, sevLevel := getSeverityLevel(logRecord.SeverityNumber(), logRecord.SeverityText())
 	if logRecord.Body().Type() == pdata.AttributeValueSTRING && sevFound {
 		data := contracts.NewMessageData()
 		data.Message = logRecord.Body().StringVal()

@@ -152,6 +152,8 @@ func spanToEnvelopes(
 			data.Properties = map[string]string{}
 			data.Measurements = map[string]float64{}
 			exceptionDetails := contracts.NewExceptionDetails()
+			sevFound := false
+			var sevLevel contracts.SeverityLevel
 			attributeMap.ForEach(
 				func(k string, v pdata.AttributeValue) {
 					if k == conventions.AttributeExceptionType && v.Type() == pdata.AttributeValueSTRING {
@@ -160,10 +162,36 @@ func spanToEnvelopes(
 						exceptionDetails.Message = v.StringVal()
 					} else if k == conventions.AttributeExceptionStacktrace && v.Type() == pdata.AttributeValueSTRING {
 						exceptionDetails.Stack = v.StringVal()
+						exceptionDetails.HasFullStack = true
+					} else if k == "exception.severity.number" && v.Type() == pdata.AttributeValueINT {
+						sevFound, sevLevel = getSeverityLevel(pdata.SeverityNumber(v.IntVal()), "")
+						if sevFound {
+							data.SeverityLevel = sevLevel
+						}
+					} else if k == "exception.severity.text" && v.Type() == pdata.AttributeValueSTRING {
+						if data.SeverityLevel == 0 {
+							sevFound, sevLevel = getSeverityLevel(pdata.SeverityNumberUNDEFINED, v.StringVal())
+							if sevFound {
+								data.SeverityLevel = sevLevel
+							}
+						}
 					} else {
 						setAttributeValueAsPropertyOrMeasurement(k, v, data.Properties, data.Measurements)
 					}
 				})
+			if sevFound == false {
+				data.SeverityLevel = contracts.Error
+			}
+			if exceptionDetails.TypeName == "" {
+				if exceptionDetails.Message != "" {
+					exceptionDetails.TypeName = "string"
+				} else {
+					exceptionDetails.TypeName = "<unknown>"
+				}
+			}
+			if exceptionDetails.Message == "" {
+				exceptionDetails.Message = "<unknown>"
+			}
 			exceptionDetails.Sanitize()
 			data.Exceptions = []*contracts.ExceptionDetails{exceptionDetails}
 			// Copy all the resource labels into the base data properties.
