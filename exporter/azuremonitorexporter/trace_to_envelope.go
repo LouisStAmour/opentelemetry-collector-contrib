@@ -67,8 +67,7 @@ func spanToEnvelopes(
 		spanKind = pdata.SpanKindINTERNAL
 	}
 
-	attributeMap := span.Attributes()
-	incomingSpanType := mapIncomingSpanToType(attributeMap)
+	incomingSpanType := mapIncomingSpanToType(span.Attributes())
 
 	// For now, FaaS spans are unsupported
 	if incomingSpanType == faasSpanType {
@@ -154,7 +153,7 @@ func spanToEnvelopes(
 			exceptionDetails := contracts.NewExceptionDetails()
 			sevFound := false
 			var sevLevel contracts.SeverityLevel
-			attributeMap.ForEach(
+			event.Attributes().ForEach(
 				func(k string, v pdata.AttributeValue) {
 					if k == conventions.AttributeExceptionType && v.Type() == pdata.AttributeValueSTRING {
 						exceptionDetails.TypeName = v.StringVal()
